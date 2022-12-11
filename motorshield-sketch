@@ -1,0 +1,91 @@
+int incomingByte = 0;
+String comandi[10];
+
+void setup() {
+  Serial.begin(9600);
+
+  //Setup Channel A - Motor for start and stop
+  pinMode(12, OUTPUT); //Initiates Motor Channel A pin
+  pinMode(9, OUTPUT); //Initiates Brake Channel A pin
+
+  //Setup Channel B - Motor for steer in left or rigth direction
+  pinMode(13, OUTPUT); //Initiates Motor Channel B pin
+  pinMode(8, OUTPUT); //Initiates Brake Channel B pin
+}
+
+void loop(){
+  Serial.println("Pronto a ricevere comandi:");
+  while (Serial.available() == 0) {}     //wait for command
+  String teststr = Serial.readString();  // read until timeout
+  teststr.trim();  // remove any \r \n whitespace at the end of the String
+
+  // Use indexOf to find the first "|" character in teststr
+  int start = 0;
+  int end = teststr.indexOf("|");
+
+  // Loop until there are no more "|" characters in teststr
+  int i = 0;
+  while (end != -1 && i < 1) {
+    // Use substring to extract the substring between the previous "|" character
+    // and the current one, and store it in the comandi array
+    comandi[i] = teststr.substring(start, end);
+
+    // Update start and end to search for the next "|" character
+    start = end + 1;
+    end = teststr.indexOf("|", start);
+
+    i++;
+  }
+
+  // Add the last substring after the last "|" character to the comandi array
+  comandi[i] = teststr.substring(start);
+
+  // Loop through the array of substrings and handle each command
+  for (int i = 0; i < 1; i++) {
+    Serial.println("Comando ricevuto via seriale: " + comandi[i]);
+
+    // Command for motore a (accelleration and retro)
+    if (comandi[i] == "7") {
+    Serial.println("Comando riconosciuto Accellerare");
+    digitalWrite(12, HIGH); ///Establishes forward direction of Channel A - canale A
+    digitalWrite(9, LOW);   //Disengage the Brake for Channel A
+    analogWrite(3, 255);  //Spins the motor on Channel A at 255 speed (full power)
+  }
+   if (comandi[i] == "6") {
+    Serial.println("Comando riconosciuto Frenare");
+    digitalWrite(12, HIGH); //Establishes forward direction of Channel A
+    digitalWrite(9, HIGH);   //Disengage the Brake for Channel A
+    analogWrite(3, 0);   //Spins the motor on Channel A at 0 speed
+  }
+   if (comandi[i] == "1") {
+    Serial.println("Comando riconosciuto Retromarcia");
+    digitalWrite(12, HIGH); //Establishes forward direction of Channel A
+    digitalWrite(9, LOW);   //Disengage the Brake for Channel A
+    analogWrite(3, 255);   //Spins the motor on Channel A at full speed
+  }
+
+  // Comandi motore B (steering controls)
+   if (comandi[i] == "14") {
+    //I steer hard left
+    Serial.println("Comando riconosciuto Sinistra");
+    digitalWrite(13, HIGH); //Establishes forward direction of Channel B
+    digitalWrite(8, LOW);   //Disengage the Brake for Channel B
+    analogWrite(11, 255);   //Spins the motor on Channel B at 255 speed (full power)
+  } 
+   if (comandi[i] == "12") {
+    Serial.println("Comando riconosciuto Centro");
+    digitalWrite(13, HIGH); //Establishes forward direction of Channel A
+    digitalWrite(8, HIGH);   //Engage the Brake for Channel B
+    analogWrite(11, 0);   //Spins the motor on Channel B at 0 speed
+  }
+   if (comandi[i] == "15") {
+   // I steer hard right
+    Serial.println("Comando riconosciuto Destra");
+    digitalWrite(13, LOW); //Establishes forward direction of Channel B
+    digitalWrite(8, LOW);  //Disengage the Brake for Channel B
+    analogWrite(11, 255);   //Spins the motor on Channel B at 255 speed (full power)
+  }
+
+}
+
+}
