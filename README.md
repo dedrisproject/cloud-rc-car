@@ -13,12 +13,12 @@ What you need for build it<br>
 <br>
 We use 3 script for Control the RC Car and 3 script for stream the camera<br>
 <br>
-For Control RC Car <br>
+<strong>For Control RC Car</strong><br>
 1- Client (tablet/smartphone or pc) - Webpage with Socket Client<br>
 2- Server (raspberry pi debian linux) - WebSocket Server in NodeJs, recive data from web and send on serial port<br>
 3- Firmware for Arduino motorshield - Recive data on serial port and activate pin<br>
 <br>
-For Stream WebCamera<br>
+<strong>For Stream WebCamera</strong><br>
 We use <br>
 1- Local WebPage for show the content of Webcam from StreamServer Script<br>
 2- Stream Server Script Daemon<br>
