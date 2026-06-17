@@ -1,0 +1,17 @@
+# Emails the car's IP addresses once at boot.
+# Install:
+#   sudo cp scripts/systemd/rc-car-notify-ip.service /etc/systemd/system/
+#   sudo systemctl enable rc-car-notify-ip
+[Unit]
+Description=Cloud RC Car IP notification
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+EnvironmentFile=-/etc/rc-car.env
+ExecStart=/usr/bin/python3 /home/pi/cloud-rc-car/scripts/notify_ip.py
+
+[Install]
+WantedBy=multi-user.target

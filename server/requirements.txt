@@ -1,0 +1,14 @@
+# Core web/control server (required everywhere).
+aiohttp>=3.9
+
+# Synthetic test camera. Lightweight; lets the stream work without hardware.
+Pillow>=10.0
+
+# --- Raspberry Pi / hardware (install on the car) -------------------------
+# Uncomment on the Raspberry Pi. They are optional: the server falls back to
+# mock backends when they are missing, so it still runs on a dev machine.
+#
+# pyserial>=3.5          # serial link to the Arduino
+# gpiozero>=2.0          # headlight GPIO control
+# opencv-python-headless # USB webcam capture + JPEG encoding
+# picamera2              # Raspberry Pi camera module (installed via apt usually)

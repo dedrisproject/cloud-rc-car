@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#10141a" />
+  <title>Cloud RC Car</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Live video -->
+    <div class="stage">
+      <img id="video" alt="Live camera" />
+      <div class="hud">
+        <span id="status" class="badge offline">offline</span>
+        <span id="gamepad" class="badge muted">no gamepad</span>
+        <button id="lights" class="badge btn-light" type="button">💡 fari</button>
+        <button id="fullscreen" class="badge" type="button" title="Schermo intero">⛶</button>
+      </div>
+    </div>
+
+    <!-- Touch / mouse controls -->
+    <div class="controls">
+      <div class="pad pad-steer">
+        <button class="ctl" data-press="left"  data-release="center" aria-label="Sinistra">◀</button>
+        <button class="ctl" data-press="center" aria-label="Centro">●</button>
+        <button class="ctl" data-press="right" data-release="center" aria-label="Destra">▶</button>
+      </div>
+      <div class="pad pad-drive">
+        <button class="ctl big" data-press="forward" data-release="brake" aria-label="Avanti">▲</button>
+        <button class="ctl"     data-press="brake" aria-label="Freno">■</button>
+        <button class="ctl big" data-press="reverse" data-release="brake" aria-label="Retro">▼</button>
+      </div>
+    </div>
+
+    <p class="hint">
+      Tastiera: ↑ avanti · ↓ retro · ← → sterzo · spazio freno · L fari ·
+      Gamepad supportato.
+    </p>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
