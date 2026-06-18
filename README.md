@@ -10,6 +10,30 @@ Raspberry Pi a bordo + Arduino/motor shield per i motori + connessione 4G/cloud.
 
 ---
 
+## Installazione (one-line)
+
+Sul Raspberry Pi, un solo comando installa tutto e avvia una **procedura
+guidata** (porta, token, seriale, camera, accesso da remoto), configura l'avvio
+al boot e il comando di gestione `rc-car`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dedrisproject/cloud-rc-car/master/install.sh | bash
+```
+
+Al termine ti mostra l'URL a cui collegarti. Per gestire il servizio:
+
+```bash
+rc-car status        # stato del servizio
+rc-car logs          # log in tempo reale
+rc-car restart       # riavvia
+rc-car update        # aggiorna dal repo e riavvia
+rc-car reconfigure   # rilancia la procedura guidata
+```
+
+> Preferisci a mano o provare senza hardware? Vedi
+> [Avvio rapido](#avvio-rapido-sviluppo-senza-hardware) e
+> [Avvio manuale sul Raspberry Pi](#avvio-manuale-sul-raspberry-pi).
+
 ## Cos'è
 
 `cloud-rc-car` trasforma una normale macchinina RC in un veicolo telecomandato via
@@ -63,28 +87,6 @@ il server li converte nei codici seriali dell'Arduino che pilota i motori.
 | `firmware/motorshield/motorshield.ino` | Sketch Arduino |
 | `install.sh` | Installer one-line + wizard di setup per Raspberry Pi |
 | `scripts/` | `notify_ip.py` + unit systemd per l'avvio al boot |
-
-## Installazione su Raspberry Pi (one-line)
-
-Un solo comando installa tutto e avvia una **procedura guidata** (porta, token,
-seriale, camera, accesso da remoto), configura l'avvio al boot e il comando di
-gestione `rc-car`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/dedrisproject/cloud-rc-car/master/install.sh | bash
-```
-
-Al termine ti mostra l'URL a cui collegarti. Per gestire il servizio:
-
-```bash
-rc-car status        # stato del servizio
-rc-car logs          # log in tempo reale
-rc-car restart       # riavvia
-rc-car update        # aggiorna dal repo e riavvia
-rc-car reconfigure   # rilancia la procedura guidata
-```
-
-I passi manuali equivalenti sono descritti più sotto.
 
 ## Avvio rapido (sviluppo, senza hardware)
 
