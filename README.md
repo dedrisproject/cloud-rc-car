@@ -2,93 +2,93 @@
 
 # 🚗 cloud-rc-car
 
-**Guida una macchinina radiocomandata da qualsiasi browser, ovunque nel mondo, con video in diretta.**
+**Drive a radio-controlled car from any browser, anywhere in the world, with live video.**
 
-Raspberry Pi a bordo + Arduino/motor shield per i motori + connessione 4G/cloud.
+Raspberry Pi on board + Arduino/motor shield for the motors + 4G/cloud connection.
 
 </div>
 
 ---
 
-## Installazione (one-line)
+## Install (one-line)
 
-Sul Raspberry Pi, un solo comando installa tutto e avvia una **procedura
-guidata** (porta, token, seriale, camera, accesso da remoto), configura l'avvio
-al boot e il comando di gestione `rc-car`:
+On the Raspberry Pi, a single command installs everything and launches an
+**interactive setup wizard** (port, token, serial, camera, remote access),
+configures boot-time startup and the `rc-car` management command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dedrisproject/cloud-rc-car/master/install.sh | bash
 ```
 
-Al termine ti mostra l'URL a cui collegarti. Per gestire il servizio:
+When it finishes it prints the URL to connect to. To manage the service:
 
 ```bash
-rc-car status        # stato del servizio
-rc-car logs          # log in tempo reale
-rc-car restart       # riavvia
-rc-car update        # aggiorna dal repo e riavvia
-rc-car reconfigure   # rilancia la procedura guidata
+rc-car status        # service status
+rc-car logs          # live logs
+rc-car restart       # restart
+rc-car update        # pull from the repo and restart
+rc-car reconfigure   # re-run the setup wizard
 ```
 
-> Preferisci a mano o provare senza hardware? Vedi
-> [Avvio rapido](#avvio-rapido-sviluppo-senza-hardware) e
-> [Avvio manuale sul Raspberry Pi](#avvio-manuale-sul-raspberry-pi).
+> Prefer to do it manually or try it without hardware? See
+> [Quick start](#quick-start-development-no-hardware) and
+> [Manual setup on the Raspberry Pi](#manual-setup-on-the-raspberry-pi).
 
-## Cos'è
+## What it is
 
-`cloud-rc-car` trasforma una normale macchinina RC in un veicolo telecomandato via
-internet. Sul Raspberry Pi montato a bordo gira **un unico server Python** che:
+`cloud-rc-car` turns an ordinary RC car into a vehicle you control over the
+internet. A **single Python server** runs on the on-board Raspberry Pi and:
 
-- serve l'**interfaccia web** di guida,
-- riceve i comandi dal browser via **WebSocket**,
-- li traduce nel protocollo seriale dell'**Arduino** che pilota i motori,
-- e trasmette il **video della webcam** in streaming MJPEG.
+- serves the **web control UI**,
+- receives commands from the browser over **WebSocket**,
+- translates them into the serial protocol of the **Arduino** that drives the motors,
+- and streams the **webcam video** as MJPEG.
 
-Tutto su **una sola porta**: dietro una connessione 4G ne inoltri una soltanto,
-senza il caos di IP/porte multiple e iframe della versione originale.
+Everything on **one port**: behind a 4G connection you only forward a single
+port, with none of the multi-IP/multi-port and iframe mess of the original.
 
-> Riscrittura completa del prototipo originale (PHP + script separati) in un
-> singolo server Python + UI moderna.
+> A complete rewrite of the original prototype (PHP + separate scripts) into a
+> single Python server + modern UI.
 
-## Come funziona
+## How it works
 
 ```
- Browser (telefono / pc)             Raspberry Pi                      Arduino
- ┌────────────────────┐  WebSocket   ┌───────────────────────┐  seriale ┌──────────┐
- │ UI web             │ ──/ws──────▶ │ server/app.py          │ ───────▶ │ firmware │ ─▶ motori
- │ touch+pad+tastiera │              │  • web server aiohttp  │  "7|"    │ (shield) │
- │ video MJPEG <img>  │ ◀─/stream─── │  • motor.py (seriale)  │          └──────────┘
+ Browser (phone / pc)                Raspberry Pi                     Arduino
+ ┌────────────────────┐  WebSocket   ┌───────────────────────┐  serial  ┌──────────┐
+ │ web UI             │ ──/ws──────▶ │ server/app.py          │ ───────▶ │ firmware │ ─▶ motors
+ │ touch+pad+keyboard │              │  • aiohttp web server  │  "7|"    │ (shield) │
+ │ MJPEG video <img>  │ ◀─/stream─── │  • motor.py (serial)   │          └──────────┘
  └────────────────────┘              │  • camera.py (MJPEG)   │
                                       └───────────────────────┘ ◀USB/CSI─ webcam
 ```
 
-Il browser invia **comandi semantici** (`forward`, `left`, `right`, …);
-il server li converte nei codici seriali dell'Arduino che pilota i motori.
+The browser sends **semantic commands** (`forward`, `left`, `right`, …); the
+server converts them into the Arduino's serial codes that drive the motors.
 
-## Cosa serve
+## What you need
 
-| # | Componente |
-|---|------------|
-| 1 | Una macchinina RC da smontare |
-| 2 | Raspberry Pi (montato sulla macchina) |
+| # | Component |
+|---|-----------|
+| 1 | An RC car to take apart |
+| 2 | Raspberry Pi (mounted on the car) |
 | 3 | Arduino + motor shield |
-| 4 | Webcam USB oppure modulo camera per Raspberry Pi |
-| 5 | *(opzionale)* un gamepad (Xbox o altro) lato browser |
+| 4 | USB webcam or Raspberry Pi camera module |
+| 5 | *(optional)* a gamepad (Xbox or any) on the browser side |
 
-## Struttura del progetto
+## Project layout
 
-| Percorso | Descrizione |
-|----------|-------------|
-| `server/app.py` | Server aiohttp: UI web + `/ws` controllo + `/stream` MJPEG |
-| `server/motor.py` | Link seriale all'Arduino (con fallback mock) |
-| `server/camera.py` | Acquisizione e streaming MJPEG (picamera2 / OpenCV / mock) |
-| `server/config.py` | Tutte le impostazioni da variabili d'ambiente / `.env` |
-| `web/` | Frontend: pulsanti touch, tastiera, gamepad |
-| `firmware/motorshield/motorshield.ino` | Sketch Arduino |
-| `install.sh` | Installer one-line + wizard di setup per Raspberry Pi |
-| `scripts/` | `notify_ip.py` + unit systemd per l'avvio al boot |
+| Path | Description |
+|------|-------------|
+| `server/app.py` | aiohttp server: web UI + `/ws` control + `/stream` MJPEG |
+| `server/motor.py` | serial link to the Arduino (with mock fallback) |
+| `server/camera.py` | capture and MJPEG streaming (picamera2 / OpenCV / mock) |
+| `server/config.py` | all settings from environment variables / `.env` |
+| `web/` | frontend: touch buttons, keyboard, gamepad |
+| `firmware/motorshield/motorshield.ino` | Arduino sketch |
+| `install.sh` | one-line installer + setup wizard for the Raspberry Pi |
+| `scripts/` | `notify_ip.py` + systemd units for boot-time startup |
 
-## Avvio rapido (sviluppo, senza hardware)
+## Quick start (development, no hardware)
 
 ```bash
 cd server
@@ -97,69 +97,69 @@ pip install -r requirements.txt
 RC_MOCK=1 python app.py
 ```
 
-Apri <http://localhost:8080/>. Con `RC_MOCK=1` la seriale e la camera
-sono **simulate** (il video mostra un'immagine di test sintetica): puoi provare
-tutta l'interfaccia da un portatile, senza nulla collegato.
+Open <http://localhost:8080/>. With `RC_MOCK=1` the serial link and camera are
+**simulated** (the video shows a synthetic test image): you can try the whole
+interface from a laptop, with nothing connected.
 
-## Avvio manuale sul Raspberry Pi
+## Manual setup on the Raspberry Pi
 
-1. **Dipendenze** (core + hardware):
+1. **Dependencies** (core + hardware):
    ```bash
    pip install -r server/requirements.txt -r server/requirements-pi.txt
-   sudo apt install python3-picamera2   # se usi il modulo camera del Pi
+   sudo apt install python3-picamera2   # if you use the Pi camera module
    ```
-2. **Configura**: `cp server/.env.example server/.env` e modificalo
-   (porta seriale, camera e — importante su 4G — `RC_AUTH_TOKEN`).
-3. **Avvia**: `python3 server/app.py`, poi apri `http://<ip-del-pi>:8080/`.
-   Con token impostato: `http://<ip-del-pi>:8080/?token=IL_TUO_TOKEN`.
+2. **Configure**: `cp server/.env.example server/.env` and edit it
+   (serial port, camera and — important on 4G — `RC_AUTH_TOKEN`).
+3. **Run**: `python3 server/app.py`, then open `http://<pi-ip>:8080/`.
+   With a token set: `http://<pi-ip>:8080/?token=YOUR_TOKEN`.
 
-### Avvio automatico al boot + IP via email
+### Start at boot + email the IP
 
-Su 4G l'IP pubblico di solito è dinamico, quindi la macchina **invia il proprio
-indirizzo via email all'accensione**: clicchi il link e guidi.
+On 4G the public IP is usually dynamic, so the car **emails its own address at
+startup**: you click the link and drive.
 
 ```bash
-sudo cp server/.env.example /etc/rc-car.env   # imposta SMTP + variabili RC_*
+sudo cp server/.env.example /etc/rc-car.env   # set SMTP + RC_* variables
 sudo cp scripts/systemd/rc-car.service /etc/systemd/system/
 sudo cp scripts/systemd/rc-car-notify-ip.service /etc/systemd/system/
 sudo systemctl enable --now rc-car
 sudo systemctl enable rc-car-notify-ip
 ```
 
-## Accesso da remoto (4G / 5G)
+## Remote access (4G / 5G)
 
-Su rete mobile l'IP è quasi sempre dietro **CGNAT**: non è raggiungibile da
-internet e il port forwarding non è possibile. Due soluzioni:
+On mobile networks the IP is almost always behind **CGNAT**: not reachable from
+the internet, and port forwarding is impossible. Two options:
 
-- **Cloudflare Tunnel** *(consigliato)*: dà un URL pubblico stabile in **HTTPS**
-  senza IP pubblico né port forwarding. Setup completo nel file
+- **Cloudflare Tunnel** *(recommended)*: gives a stable public **HTTPS** URL with
+  no public IP and no port forwarding. Full setup in
   [`scripts/systemd/rc-car-tunnel.service`](scripts/systemd/rc-car-tunnel.service);
-  per una prova veloce basta `cloudflared tunnel --url http://localhost:8080`
-  (URL `*.trycloudflare.com` casuale).
-- **Tailscale / ZeroTier**: VPN mesh; il Pi ottiene un IP stabile sulla tua rete
-  privata. Ottimo se accedi solo dai tuoi dispositivi (richiede l'app sul
-  client). `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+  for a quick test just run `cloudflared tunnel --url http://localhost:8080`
+  (random `*.trycloudflare.com` URL).
+- **Tailscale / ZeroTier**: mesh VPN; the Pi gets a stable IP on your private
+  network. Great if you only connect from your own devices (requires the app on
+  the client). `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
 
-In rete locale (Wi-Fi) puoi invece usare direttamente `http://<ip-del-pi>:8080/`.
+On the local network (Wi-Fi) you can just use `http://<pi-ip>:8080/`.
 
-Con un tunnel hai anche TLS gratis: tieni comunque `RC_AUTH_TOKEN` impostato.
+With a tunnel you also get TLS for free: keep `RC_AUTH_TOKEN` set anyway.
 
-## Comandi di guida
+## Driving controls
 
-| Input | Azione |
+| Input | Action |
 |-------|--------|
-| Pulsanti a schermo | sterzo ◀●▶ e marcia ▲■▼ (touch e mouse) |
-| Tastiera | ↑ avanti · ↓ retro · ← → sterzo · spazio freno |
-| Gamepad | RT acceleratore · LT retro · stick sinistro sterzo |
+| On-screen buttons | steering ◀●▶ and drive ▲■▼ (touch and mouse) |
+| Keyboard | ↑ forward · ↓ reverse · ← → steer · space brake |
+| Gamepad | RT throttle · LT reverse · left stick steering |
 
-L'HUD mostra stato connessione e **latenza (RTT)** misurata via ping sul
-WebSocket. Trazione e sterzo sono canali indipendenti: tenerli premuti insieme
-non intasa la seriale (de-duplica per canale).
+The HUD shows the connection status and the **latency (RTT)** measured via a
+WebSocket ping. Throttle and steering are independent channels: holding them
+together does not flood the serial link (per-channel de-duplication).
 
-## Protocollo comandi
+## Command protocol
 
-| Semantico (browser → server) | Codice seriale (server → Arduino) |
-|------------------------------|-----------------------------------|
+| Semantic (browser → server) | Serial code (server → Arduino) |
+|-----------------------------|--------------------------------|
 | `forward` | `7\|` |
 | `brake` | `6\|` |
 | `reverse` | `1\|` |
@@ -167,41 +167,41 @@ non intasa la seriale (de-duplica per canale).
 | `right` | `15\|` |
 | `center` | `12\|` |
 
-## Test
+## Tests
 
-I test girano senza hardware (mock):
+The tests run without hardware (mock):
 
 ```bash
 pip install pytest
 pytest
 ```
 
-## Sicurezza
+## Safety
 
-- **Watchdog**: se non arrivano comandi entro `RC_SAFETY_TIMEOUT` secondi (es.
-  la connessione cade), la macchina frena e raddrizza le ruote automaticamente.
-- **Token condiviso**: imposta `RC_AUTH_TOKEN` per proteggere `/ws` e `/stream`
-  quando la macchina è raggiungibile da internet. **Fortemente consigliato su 4G.**
-- Nessun IP o credenziale è scritto nel codice: tutto passa da `.env` /
-  variabili d'ambiente (e `.env` è in `.gitignore`).
+- **Watchdog**: if no command arrives within `RC_SAFETY_TIMEOUT` seconds (e.g.
+  the connection drops), the car brakes and recenters the wheels automatically.
+- **Shared token**: set `RC_AUTH_TOKEN` to protect `/ws` and `/stream` when the
+  car is reachable from the internet. **Strongly recommended on 4G.**
+- No IP or credential is hardcoded: everything comes from `.env` / environment
+  variables (and `.env` is in `.gitignore`).
 
-## Configurazione
+## Configuration
 
-Tutte le impostazioni hanno un default sensato e si sovrascrivono via ambiente o
-`.env`. Le principali:
+Every setting has a sensible default and can be overridden via the environment
+or `.env`. The main ones:
 
-| Variabile | Default | Descrizione |
-|-----------|---------|-------------|
-| `RC_HOST` / `RC_PORT` | `0.0.0.0` / `8080` | Bind del server web |
-| `RC_AUTH_TOKEN` | *(vuoto)* | Token per `/ws` e `/stream` (vuoto = disattivo) |
-| `RC_SERIAL_PORT` / `RC_SERIAL_BAUD` | `/dev/ttyACM0` / `115200` | Link Arduino (il baud deve combaciare col firmware) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RC_HOST` / `RC_PORT` | `0.0.0.0` / `8080` | Web server bind |
+| `RC_AUTH_TOKEN` | *(empty)* | Token for `/ws` and `/stream` (empty = disabled) |
+| `RC_SERIAL_PORT` / `RC_SERIAL_BAUD` | `/dev/ttyACM0` / `115200` | Arduino link (baud must match the firmware) |
 | `RC_CAMERA_SOURCE` | `auto` | `auto` / `picamera2` / `opencv` / `mock` |
-| `RC_CAMERA_WIDTH/HEIGHT/FPS/QUALITY` | `640/480/15/70` | Parametri video |
-| `RC_SAFETY_TIMEOUT` | `1.5` | Secondi prima dello stop di sicurezza (0 = off) |
-| `RC_MOCK` | `0` | Forza hardware simulato (sviluppo) |
+| `RC_CAMERA_WIDTH/HEIGHT/FPS/QUALITY` | `640/480/15/70` | Video parameters |
+| `RC_SAFETY_TIMEOUT` | `1.5` | Seconds before the safety stop (0 = off) |
+| `RC_MOCK` | `0` | Force simulated hardware (development) |
 
-Elenco completo in [`server/.env.example`](server/.env.example).
+Full list in [`server/.env.example`](server/.env.example).
 
-## Licenza
+## License
 
-Progetto personale/hobbistico. Usalo, modificalo e divertiti — guida con prudenza. 🏁
+Personal/hobby project. Use it, modify it and have fun — drive responsibly. 🏁
