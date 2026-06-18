@@ -61,7 +61,30 @@ il server li converte nei codici seriali dell'Arduino che pilota i motori.
 | `server/config.py` | Tutte le impostazioni da variabili d'ambiente / `.env` |
 | `web/` | Frontend: pulsanti touch, tastiera, gamepad |
 | `firmware/motorshield/motorshield.ino` | Sketch Arduino |
+| `install.sh` | Installer one-line + wizard di setup per Raspberry Pi |
 | `scripts/` | `notify_ip.py` + unit systemd per l'avvio al boot |
+
+## Installazione su Raspberry Pi (one-line)
+
+Un solo comando installa tutto e avvia una **procedura guidata** (porta, token,
+seriale, camera, accesso da remoto), configura l'avvio al boot e il comando di
+gestione `rc-car`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dedrisproject/cloud-rc-car/master/install.sh | bash
+```
+
+Al termine ti mostra l'URL a cui collegarti. Per gestire il servizio:
+
+```bash
+rc-car status        # stato del servizio
+rc-car logs          # log in tempo reale
+rc-car restart       # riavvia
+rc-car update        # aggiorna dal repo e riavvia
+rc-car reconfigure   # rilancia la procedura guidata
+```
+
+I passi manuali equivalenti sono descritti più sotto.
 
 ## Avvio rapido (sviluppo, senza hardware)
 
@@ -76,7 +99,7 @@ Apri <http://localhost:8080/>. Con `RC_MOCK=1` la seriale e la camera
 sono **simulate** (il video mostra un'immagine di test sintetica): puoi provare
 tutta l'interfaccia da un portatile, senza nulla collegato.
 
-## Avvio sul Raspberry Pi
+## Avvio manuale sul Raspberry Pi
 
 1. **Dipendenze** (core + hardware):
    ```bash
