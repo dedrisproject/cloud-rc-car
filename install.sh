@@ -14,7 +14,12 @@ set -euo pipefail
 REPO_URL="https://github.com/dedrisproject/cloud-rc-car.git"
 RAW_BRANCH="master"
 RC_USER="${SUDO_USER:-$(id -un)}"
-RC_HOME="$(getent passwd "$RC_USER" | cut -d: -f6)"
+if command -v getent >/dev/null 2>&1; then
+  RC_HOME="$(getent passwd "$RC_USER" | cut -d: -f6)"
+else
+  RC_HOME="$(eval echo "~$RC_USER")"
+fi
+RC_HOME="${RC_HOME:-$HOME}"
 RC_DIR="${RC_DIR:-$RC_HOME/cloud-rc-car}"
 ENV_FILE="$RC_DIR/server/.env"
 MODE="install"
@@ -59,6 +64,16 @@ banner() {
 }
 
 need_sudo() { if [ "$(id -u)" -ne 0 ]; then sudo "$@"; else "$@"; fi; }
+
+require_platform() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    say ""
+    die "Questo installer va eseguito sul Raspberry Pi (Linux), non su $(uname -s).\n  Collegati al Pi via SSH e rilancia lì:\n    ssh pi@<ip-del-pi>\n    curl -fsSL https://raw.githubusercontent.com/dedrisproject/cloud-rc-car/master/install.sh | bash\n\n  Per provare sul tuo computer (senza hardware):\n    git clone $REPO_URL && cd cloud-rc-car/server\n    python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt\n    RC_MOCK=1 python app.py"
+  fi
+  if ! command -v apt-get >/dev/null 2>&1; then
+    warn "apt non trovato: questo installer è pensato per Raspberry Pi OS / Debian."
+  fi
+}
 
 # ---- detection ------------------------------------------------------------
 detect_arch() {
@@ -269,6 +284,7 @@ summary() {
 # ---- main -----------------------------------------------------------------
 main() {
   banner
+  require_platform
   if [ "$MODE" = "reconfigure" ]; then
     wizard
     setup_remote
