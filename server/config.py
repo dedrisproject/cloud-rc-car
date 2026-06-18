@@ -64,10 +64,7 @@ class Config:
 
     # --- Arduino / motor control ---------------------------------------
     serial_port: str = field(default_factory=lambda: _env("RC_SERIAL_PORT", "/dev/ttyACM0"))
-    serial_baud: int = field(default_factory=lambda: _env_int("RC_SERIAL_BAUD", 9600))
-
-    # GPIO pin (BCM numbering) wired to the headlights relay/LED.
-    lights_pin: int = field(default_factory=lambda: _env_int("RC_LIGHTS_PIN", 17))
+    serial_baud: int = field(default_factory=lambda: _env_int("RC_SERIAL_BAUD", 115200))
 
     # --- Camera ---------------------------------------------------------
     # Source: "auto" (try picamera2 then OpenCV), "picamera2", "opencv" or

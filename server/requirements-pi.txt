@@ -1,0 +1,11 @@
+# Hardware dependencies, install on the Raspberry Pi:
+#   pip install -r requirements.txt -r requirements-pi.txt
+#
+# All optional: if any is missing the server falls back to a mock backend.
+
+pyserial>=3.5            # serial link to the Arduino
+opencv-python-headless   # USB webcam capture + JPEG encoding
+
+# Raspberry Pi camera module. Usually installed system-wide via apt instead:
+#   sudo apt install -y python3-picamera2
+# picamera2

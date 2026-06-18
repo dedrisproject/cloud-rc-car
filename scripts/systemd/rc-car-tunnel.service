@@ -1,0 +1,41 @@
+# Cloudflare Tunnel: exposes the car on a stable public HTTPS URL without a
+# public IP or port forwarding. Works behind 5G/4G carrier-grade NAT (CGNAT),
+# where the device has no reachable address.
+#
+# Setup (one time, on the Pi):
+#   1. Install cloudflared:
+#        curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 -o /usr/local/bin/cloudflared
+#        sudo chmod +x /usr/local/bin/cloudflared
+#   2. cloudflared tunnel login
+#   3. cloudflared tunnel create rc-car
+#   4. Route a hostname to it (needs a domain on Cloudflare):
+#        cloudflared tunnel route dns rc-car car.example.com
+#   5. Create /etc/cloudflared/config.yml:
+#        tunnel: rc-car
+#        credentials-file: /home/pi/.cloudflared/<TUNNEL-ID>.json
+#        ingress:
+#          - hostname: car.example.com
+#            service: http://localhost:8080
+#          - service: http_status:404
+#   6. sudo cp scripts/systemd/rc-car-tunnel.service /etc/systemd/system/
+#      sudo systemctl enable --now rc-car-tunnel
+#
+# Then drive from anywhere at https://car.example.com/  (TLS handled by
+# Cloudflare). Keep RC_AUTH_TOKEN set so only you can connect.
+#
+# No domain? For a quick test you can get a random *.trycloudflare.com URL with:
+#   cloudflared tunnel --url http://localhost:8080
+[Unit]
+Description=Cloudflare Tunnel for Cloud RC Car
+After=network-online.target rc-car.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

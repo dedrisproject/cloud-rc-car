@@ -1,11 +1,12 @@
 /* Cloud RC Car — browser controller.
  *
  * Talks to the aiohttp server on the same origin:
- *   - WebSocket /ws  for control commands
+ *   - WebSocket /ws  for control commands + latency probe
  *   - <img> /stream  for the MJPEG video feed
  *
  * Input sources: on-screen buttons (touch/mouse), keyboard and the Gamepad API.
- * Commands are debounced so a held key/button does not flood the socket.
+ * Throttle and steering are de-duplicated independently, so holding e.g.
+ * "forward + left" together does not flood the socket.
  */
 (() => {
   "use strict";
@@ -18,14 +19,19 @@
   const els = {
     video: document.getElementById("video"),
     status: document.getElementById("status"),
+    latency: document.getElementById("latency"),
     gamepad: document.getElementById("gamepad"),
-    lights: document.getElementById("lights"),
     fullscreen: document.getElementById("fullscreen"),
+  };
+
+  // Which control channel a command belongs to, for per-channel de-duplication.
+  const CHANNEL = {
+    forward: "drive", reverse: "drive", brake: "drive",
+    left: "steer", right: "steer", center: "steer",
   };
 
   // ---- Video feed -----------------------------------------------------
   function startVideo() {
-    // Cache-bust so a reconnect always pulls a fresh multipart stream.
     els.video.src = `/stream${qs}${qs ? "&" : "?"}t=${Date.now()}`;
   }
   els.video.addEventListener("error", () => setTimeout(startVideo, 2000));
@@ -33,8 +39,9 @@
 
   // ---- WebSocket control ---------------------------------------------
   let socket = null;
-  let lastSent = null;
+  const lastSent = { drive: null, steer: null };
   let reconnectTimer = null;
+  let pingTimer = null;
 
   function setStatus(text, cls) {
     els.status.textContent = text;
@@ -46,9 +53,17 @@
     setStatus("connecting", "connecting");
     socket = new WebSocket(`${proto}://${location.host}/ws${qs}`);
 
-    socket.onopen = () => setStatus("online", "online");
+    socket.onopen = () => {
+      setStatus("online", "online");
+      lastSent.drive = lastSent.steer = null;
+      clearInterval(pingTimer);
+      pingTimer = setInterval(sendPing, 1000);
+      sendPing();
+    };
     socket.onclose = () => {
       setStatus("offline", "offline");
+      setLatency(null);
+      clearInterval(pingTimer);
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connect, 1500);
     };
@@ -56,21 +71,35 @@
     socket.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
-        if (msg.type === "state") applyState(msg);
+        if (msg.type === "pong") setLatency(Math.round(performance.now() - msg.t));
         else if (msg.type === "error") console.warn("server:", msg.message);
       } catch (_) { /* ignore non-JSON */ }
     };
   }
 
-  function applyState(state) {
-    els.lights.classList.toggle("on", !!state.lights);
+  function sendPing() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "ping", t: performance.now() }));
+    }
   }
 
-  // Send a command, skipping consecutive duplicates (server also dedupes).
+  function setLatency(ms) {
+    if (ms == null) {
+      els.latency.textContent = "— ms";
+      els.latency.className = "badge muted";
+      return;
+    }
+    els.latency.textContent = `${ms} ms`;
+    const cls = ms < 120 ? "lag-ok" : ms < 300 ? "lag-warn" : "lag-bad";
+    els.latency.className = `badge ${cls}`;
+  }
+
+  // Send a command, de-duplicating consecutive identical ones per channel.
   function send(cmd, { force = false } = {}) {
     if (!cmd) return;
-    if (!force && cmd === lastSent) return;
-    lastSent = cmd;
+    const ch = CHANNEL[cmd];
+    if (!force && ch && cmd === lastSent[ch]) return;
+    if (ch) lastSent[ch] = cmd;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ cmd }));
     }
@@ -92,7 +121,6 @@
     btn.addEventListener("pointerleave", (e) => { if (btn.classList.contains("active")) onUp(e); });
   });
 
-  els.lights.addEventListener("click", () => send("lights_toggle", { force: true }));
   els.fullscreen.addEventListener("click", () => {
     const el = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -110,7 +138,6 @@
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "l") { send("lights_toggle", { force: true }); return; }
     const m = keyMap[e.key];
     if (!m || held.has(e.key)) return;
     e.preventDefault();
@@ -126,9 +153,11 @@
 
   // ---- Gamepad --------------------------------------------------------
   // Standard mapping: axes[0]=left stick X, buttons[7]=RT (gas),
-  // buttons[6]=LT (reverse), buttons[0]=A (lights).
+  // buttons[6]=LT (reverse). Polled on rAF but commands are rate-limited
+  // (de-dup already prevents floods; this caps transition spam too).
   let gamepadIndex = null;
-  let lightsBtnPrev = false;
+  let lastPoll = 0;
+  const POLL_INTERVAL_MS = 50; // 20 Hz
 
   window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -141,27 +170,21 @@
     els.gamepad.className = "badge muted";
   });
 
-  function pollGamepad() {
-    if (gamepadIndex !== null) {
+  function pollGamepad(now) {
+    if (gamepadIndex !== null && now - lastPoll >= POLL_INTERVAL_MS) {
+      lastPoll = now;
       const gp = navigator.getGamepads()[gamepadIndex];
       if (gp) {
-        // Drive
         const gas = (gp.buttons[7] && gp.buttons[7].value) || 0;
         const rev = (gp.buttons[6] && gp.buttons[6].value) || 0;
         if (gas > 0.2) send("forward");
         else if (rev > 0.2) send("reverse");
         else send("brake");
 
-        // Steering
         const x = gp.axes[0] || 0;
         if (x < -0.3) send("left");
         else if (x > 0.3) send("right");
         else send("center");
-
-        // Lights on A button (edge-triggered)
-        const a = !!(gp.buttons[0] && gp.buttons[0].pressed);
-        if (a && !lightsBtnPrev) send("lights_toggle", { force: true });
-        lightsBtnPrev = a;
       }
     }
     requestAnimationFrame(pollGamepad);

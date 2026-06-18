@@ -2,13 +2,17 @@
 
 Supports the Raspberry Pi camera (picamera2), any USB webcam (OpenCV) and a
 hardware-free synthetic source ("mock") so the stream works even on a dev
-machine. A single capture loop runs in a background thread and the latest JPEG
-frame is shared with all connected viewers, so adding clients costs nothing
-extra on the encoder side.
+machine.
+
+A single capture loop runs in a background thread; the latest JPEG is shared
+with all viewers. Distribution to HTTP clients is fully asynchronous: instead of
+parking one OS thread per viewer, the capture thread wakes asyncio waiters via
+the event loop, so many viewers cost almost nothing.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -22,14 +26,17 @@ class CameraStreamer:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self._frame: bytes | None = None
-        self._lock = threading.Condition()
+        self._frame_id = 0
         self._running = False
         self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._waiters: list[asyncio.Future] = []
         self._backend = "mock" if cfg.mock_hardware else cfg.camera_source
 
-    def start(self) -> None:
+    def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         if self._running:
             return
+        self._loop = loop or asyncio.get_event_loop()
         self._running = True
         self._thread = threading.Thread(target=self._run, name="camera", daemon=True)
         self._thread.start()
@@ -39,19 +46,32 @@ class CameraStreamer:
         if self._thread:
             self._thread.join(timeout=2)
 
-    def get_frame(self, last_frame: bytes | None, timeout: float = 5.0) -> bytes | None:
-        """Block until a frame newer than ``last_frame`` is available."""
-        with self._lock:
-            if self._frame is None or self._frame is last_frame:
-                self._lock.wait(timeout)
-            return self._frame
+    async def wait_frame(self, last_id: int) -> tuple[bytes, int]:
+        """Await a frame newer than ``last_id``; returns (jpeg, frame_id)."""
+        assert self._loop is not None
+        if self._frame is not None and self._frame_id != last_id:
+            return self._frame, self._frame_id
+        fut: asyncio.Future = self._loop.create_future()
+        self._waiters.append(fut)
+        await fut
+        return self._frame, self._frame_id  # type: ignore[return-value]
+
+    # -- frame distribution ---------------------------------------------
+    def _publish(self, jpeg: bytes) -> None:
+        # Called from the capture thread; hand off to the event loop thread.
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self._set_frame, jpeg)
+
+    def _set_frame(self, jpeg: bytes) -> None:
+        # Runs in the event-loop thread: safe to touch the waiter list.
+        self._frame = jpeg
+        self._frame_id += 1
+        waiters, self._waiters = self._waiters, []
+        for fut in waiters:
+            if not fut.done():
+                fut.set_result(None)
 
     # -- capture loop ----------------------------------------------------
-    def _publish(self, jpeg: bytes) -> None:
-        with self._lock:
-            self._frame = jpeg
-            self._lock.notify_all()
-
     def _run(self) -> None:
         order = (
             [self._backend]
@@ -147,7 +167,6 @@ class CameraStreamer:
 
     def _run_mock_minimal(self) -> None:
         """Last-resort mock when Pillow is unavailable: a tiny static JPEG."""
-        # 1x1 black pixel JPEG.
         import base64
 
         jpeg = base64.b64decode(

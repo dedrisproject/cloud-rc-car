@@ -23,7 +23,7 @@ const int B_PWM   = 11;  // speed (PWM)
 String buffer = "";
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(A_DIR, OUTPUT);
   pinMode(A_BRAKE, OUTPUT);
   pinMode(B_DIR, OUTPUT);

@@ -73,8 +73,9 @@ html, body {
 .badge.offline { color: #fff; background: var(--err); border-color: transparent; }
 .badge.connecting { color: #210; background: var(--warn); border-color: transparent; }
 #fullscreen { margin-left: auto; cursor: pointer; }
-.btn-light { cursor: pointer; }
-.btn-light.on { color: #210; background: var(--warn); border-color: transparent; }
+.badge.lag-ok { color: #042; background: var(--ok); border-color: transparent; }
+.badge.lag-warn { color: #210; background: var(--warn); border-color: transparent; }
+.badge.lag-bad { color: #fff; background: var(--err); border-color: transparent; }
 
 /* --- Controls --- */
 .controls {

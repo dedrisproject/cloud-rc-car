@@ -2,7 +2,7 @@
 
 A single aiohttp process that serves:
   * the web UI            (GET  /)
-  * the control channel   (WS   /ws)        browser -> motors/lights
+  * the control channel   (WS   /ws)        browser -> motors
   * the live video feed   (GET  /stream)    MJPEG, multipart
 
 Running everything on one port means only one port has to be forwarded over the
@@ -62,10 +62,19 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         async for msg in ws:
             if msg.type != WSMsgType.TEXT:
                 continue
-            request.app["last_seen"] = time.monotonic()
-            command = _parse_command(msg.data)
-            if command is None:
+            payload = _parse_message(msg.data)
+            if payload is None:
                 continue
+
+            # Latency probe: echo the client timestamp straight back.
+            if payload.get("type") == "ping":
+                await ws.send_json({"type": "pong", "t": payload.get("t")})
+                continue
+
+            command = payload.get("cmd")
+            if not command:
+                continue
+            request.app["last_seen"] = time.monotonic()
             try:
                 state = await asyncio.to_thread(motor.handle, command)
                 await ws.send_json({"type": "state", **state})
@@ -77,16 +86,22 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
-def _parse_command(raw: str) -> str | None:
+def _parse_message(raw: str) -> dict | None:
+    """Parse an incoming WS message into a dict.
+
+    Accepts JSON objects (``{"cmd": "forward"}`` / ``{"type": "ping"}``) as well
+    as a bare command string (``"forward"``) for convenience.
+    """
     raw = raw.strip()
     if not raw:
         return None
-    if raw.startswith("{"):
+    if raw[0] in "{[":
         try:
-            return str(json.loads(raw).get("cmd") or "").strip() or None
-        except (ValueError, AttributeError):
+            obj = json.loads(raw)
+            return obj if isinstance(obj, dict) else None
+        except ValueError:
             return None
-    return raw
+    return {"cmd": raw}
 
 
 async def stream_handler(request: web.Request) -> web.StreamResponse:
@@ -105,13 +120,10 @@ async def stream_handler(request: web.Request) -> web.StreamResponse:
     )
     await response.prepare(request)
     log.info("stream viewer connected")
-    last: bytes | None = None
+    last_id = -1
     try:
         while True:
-            frame = await asyncio.to_thread(camera.get_frame, last)
-            if frame is None or frame is last:
-                continue
-            last = frame
+            frame, last_id = await camera.wait_frame(last_id)
             await response.write(
                 b"--" + boundary.encode() + b"\r\n"
                 b"Content-Type: image/jpeg\r\n"
@@ -158,7 +170,7 @@ async def safety_watchdog(app: web.Application) -> None:
 
 
 async def on_startup(app: web.Application) -> None:
-    app["camera"].start()
+    app["camera"].start(asyncio.get_running_loop())
     app["watchdog"] = asyncio.create_task(safety_watchdog(app))
 
 

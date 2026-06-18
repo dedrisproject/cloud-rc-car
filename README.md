@@ -34,12 +34,12 @@ senza il caos di IP/porte multiple e iframe della versione originale.
  │ UI web             │ ──/ws──────▶ │ server/app.py          │ ───────▶ │ firmware │ ─▶ motori
  │ touch+pad+tastiera │              │  • web server aiohttp  │  "7|"    │ (shield) │
  │ video MJPEG <img>  │ ◀─/stream─── │  • motor.py (seriale)  │          └──────────┘
- └────────────────────┘              │  • camera.py (MJPEG)   │ ──GPIO─▶ fari
+ └────────────────────┘              │  • camera.py (MJPEG)   │
                                       └───────────────────────┘ ◀USB/CSI─ webcam
 ```
 
-Il browser invia **comandi semantici** (`forward`, `left`, `lights_toggle`, …);
-il server li converte nei codici seriali dell'Arduino e gestisce i fari via GPIO.
+Il browser invia **comandi semantici** (`forward`, `left`, `right`, …);
+il server li converte nei codici seriali dell'Arduino che pilota i motori.
 
 ## Cosa serve
 
@@ -56,7 +56,7 @@ il server li converte nei codici seriali dell'Arduino e gestisce i fari via GPIO
 | Percorso | Descrizione |
 |----------|-------------|
 | `server/app.py` | Server aiohttp: UI web + `/ws` controllo + `/stream` MJPEG |
-| `server/motor.py` | Link seriale all'Arduino + fari via GPIO (con fallback mock) |
+| `server/motor.py` | Link seriale all'Arduino (con fallback mock) |
 | `server/camera.py` | Acquisizione e streaming MJPEG (picamera2 / OpenCV / mock) |
 | `server/config.py` | Tutte le impostazioni da variabili d'ambiente / `.env` |
 | `web/` | Frontend: pulsanti touch, tastiera, gamepad |
@@ -72,15 +72,15 @@ pip install -r requirements.txt
 RC_MOCK=1 python app.py
 ```
 
-Apri <http://localhost:8080/>. Con `RC_MOCK=1` la seriale, la GPIO e la camera
+Apri <http://localhost:8080/>. Con `RC_MOCK=1` la seriale e la camera
 sono **simulate** (il video mostra un'immagine di test sintetica): puoi provare
 tutta l'interfaccia da un portatile, senza nulla collegato.
 
 ## Avvio sul Raspberry Pi
 
-1. **Dipendenze** (scommenta prima le righe hardware in `server/requirements.txt`):
+1. **Dipendenze** (core + hardware):
    ```bash
-   pip install -r server/requirements.txt
+   pip install -r server/requirements.txt -r server/requirements-pi.txt
    sudo apt install python3-picamera2   # se usi il modulo camera del Pi
    ```
 2. **Configura**: `cp server/.env.example server/.env` e modificalo
@@ -101,13 +101,35 @@ sudo systemctl enable --now rc-car
 sudo systemctl enable rc-car-notify-ip
 ```
 
+## Accesso da remoto (4G / 5G)
+
+Su rete mobile l'IP è quasi sempre dietro **CGNAT**: non è raggiungibile da
+internet e il port forwarding non è possibile. Due soluzioni:
+
+- **Cloudflare Tunnel** *(consigliato)*: dà un URL pubblico stabile in **HTTPS**
+  senza IP pubblico né port forwarding. Setup completo nel file
+  [`scripts/systemd/rc-car-tunnel.service`](scripts/systemd/rc-car-tunnel.service);
+  per una prova veloce basta `cloudflared tunnel --url http://localhost:8080`
+  (URL `*.trycloudflare.com` casuale).
+- **Tailscale / ZeroTier**: VPN mesh; il Pi ottiene un IP stabile sulla tua rete
+  privata. Ottimo se accedi solo dai tuoi dispositivi (richiede l'app sul
+  client). `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+
+In rete locale (Wi-Fi) puoi invece usare direttamente `http://<ip-del-pi>:8080/`.
+
+Con un tunnel hai anche TLS gratis: tieni comunque `RC_AUTH_TOKEN` impostato.
+
 ## Comandi di guida
 
 | Input | Azione |
 |-------|--------|
 | Pulsanti a schermo | sterzo ◀●▶ e marcia ▲■▼ (touch e mouse) |
-| Tastiera | ↑ avanti · ↓ retro · ← → sterzo · spazio freno · L fari |
-| Gamepad | RT acceleratore · LT retro · stick sinistro sterzo · A fari |
+| Tastiera | ↑ avanti · ↓ retro · ← → sterzo · spazio freno |
+| Gamepad | RT acceleratore · LT retro · stick sinistro sterzo |
+
+L'HUD mostra stato connessione e **latenza (RTT)** misurata via ping sul
+WebSocket. Trazione e sterzo sono canali indipendenti: tenerli premuti insieme
+non intasa la seriale (de-duplica per canale).
 
 ## Protocollo comandi
 
@@ -119,7 +141,15 @@ sudo systemctl enable rc-car-notify-ip
 | `left` | `14\|` |
 | `right` | `15\|` |
 | `center` | `12\|` |
-| `lights_on` / `lights_off` / `lights_toggle` | pin GPIO (nessuna seriale) |
+
+## Test
+
+I test girano senza hardware (mock):
+
+```bash
+pip install pytest
+pytest
+```
 
 ## Sicurezza
 
@@ -139,8 +169,7 @@ Tutte le impostazioni hanno un default sensato e si sovrascrivono via ambiente o
 |-----------|---------|-------------|
 | `RC_HOST` / `RC_PORT` | `0.0.0.0` / `8080` | Bind del server web |
 | `RC_AUTH_TOKEN` | *(vuoto)* | Token per `/ws` e `/stream` (vuoto = disattivo) |
-| `RC_SERIAL_PORT` / `RC_SERIAL_BAUD` | `/dev/ttyACM0` / `9600` | Link Arduino |
-| `RC_LIGHTS_PIN` | `17` | Pin GPIO (BCM) dei fari |
+| `RC_SERIAL_PORT` / `RC_SERIAL_BAUD` | `/dev/ttyACM0` / `115200` | Link Arduino (il baud deve combaciare col firmware) |
 | `RC_CAMERA_SOURCE` | `auto` | `auto` / `picamera2` / `opencv` / `mock` |
 | `RC_CAMERA_WIDTH/HEIGHT/FPS/QUALITY` | `640/480/15/70` | Parametri video |
 | `RC_SAFETY_TIMEOUT` | `1.5` | Secondi prima dello stop di sicurezza (0 = off) |
